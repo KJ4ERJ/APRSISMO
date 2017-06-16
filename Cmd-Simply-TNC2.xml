@@ -1,0 +1,4 @@
+<Simply-TNC2>
+<!-- This puts the TNC on the B band in KISS mode -->
+<XmitFormat>TNC2</XmitFormat>
+</Simply-TNC2>

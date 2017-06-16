@@ -1,0 +1,7 @@
+<D74-KISS-B>
+<!-- This puts the TNC on the B band in KISS mode -->
+<OpenCmd>^192^255^192!?^013!!KISS Off</OpenCmd><!-- Kill KISS to get control -->
+<OpenCmd>TN 2,1!TN 2,1!!TNC KISS</OpenCmd><!-- KISS Mode on Band B -->
+<CloseCmd>^192^255^192!?^013!!KISS Off</CloseCmd><!-- Turn KISS Off when we're done -->
+<XmitFormat>KISS</XmitFormat>
+</D74-KISS-B>

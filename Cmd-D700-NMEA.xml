@@ -1,0 +1,16 @@
+<D700-NMEA>
+<!-- This puts the TNC on the B band in APRS mode but disables NMEA output from the iGPS -->
+<OpenCmd>^192^255^192!!0!KISS Off</OpenCmd><!-- Kill KISS to get control -->
+<OpenCmd>^M~!!!Attn</OpenCmd><!-- Get a Cmd: prompt -->
+<OpenCmd>^M~!!!Attn</OpenCmd><!-- Get a Cmd: prompt -->
+<OpenCmd>LOC E 0!!!</OpenCmd><!--  -->
+<OpenCmd>LTMON 5!!!GPS Every 5</OpenCmd><!-- Need GPS update every 5 seconds -->
+<OpenCmd>LTMHEAD OFF!!!LTMHEAD</OpenCmd><!-- Don't want any header on GPS -->
+<OpenCmd>GPSTEXT $GPRMC!!!GPRMC</OpenCmd><!-- $GPRMC tells us important stuff -->
+<OpenCmd>XFLOW OFF!!!XFLOW</OpenCmd><!-- KISS never wants flow control -->
+<OpenCmd>FULLDUP OFF!!!FULLDUP</OpenCmd><!-- Turn off full duplex to keep carrier detec -->
+<CloseCmd>~!!0!No-Op</CloseCmd><!-- No operation on close -->
+<PreXmitCmd>CONV!!0!CONVerse Mode</PreXmitCmd><!-- Goto to converse -->
+<XmitFormat>CONV</XmitFormat>
+<PostXmitCmd>^C!!1!Back to command mode</PostXmitCmd><!-- Exit Converse mode -->
+</D700-NMEA>

@@ -1,6 +1,10 @@
 # Compiled Lua sources
 luac.out
 
+# APRSISMO Configuration files
+APRSISMO.xml
+APRSISMO.xml-Safe
+
 # luarocks build files
 *.src.rock
 *.zip

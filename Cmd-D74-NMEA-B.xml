@@ -1,0 +1,12 @@
+<D74-NMEA-B>
+<!-- This puts the TNC on the B band in APRS mode and enables NMEA output from the iGPS -->
+<OpenCmd>^192^255^192!?^013!!KISS Off</OpenCmd><!-- Kill KISS to get control -->
+<OpenCmd>TN 1,1!TN 1,1!!TNC APRS</OpenCmd><!-- APRS Mode on Band B -->
+<OpenCmd>GP 1,1!GP 1,1!!iGPS Out</OpenCmd><!-- Enable iGPS Use and Output -->
+<CloseCmd>^192^255^192!?^013!!KISS Off</CloseCmd><!-- Turn KISS Off when we're done -->
+<PreXmitCmd>TN 2,1!TN 2,1!!TNC KISS</PreXmitCmd><!-- KISS Mode on Band B -->
+<XmitFormat>KISS</XmitFormat>
+<PostXmitCmd>~!!1!Delay</PostXmitCmd><!-- Give the packet a chance to get out -->
+<PostXmitCmd>^192^255^192~!!1!KISS Off</PostXmitCmd><!-- Turn KISS Off when we're done -->
+<PostXmitCmd>TN 1,1!TN 1,1!!TNC APRS</PostXmitCmd><!-- APRS Mode on Band B -->
+</D74-NMEA-B>
