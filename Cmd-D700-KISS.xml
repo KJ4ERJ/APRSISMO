@@ -1,0 +1,12 @@
+<D700-KISS>
+<!-- This puts the TNC on the A band in KISS mode -->
+<OpenCmd>^192^255^192!?^013!!KISS Off</OpenCmd><!-- Kill KISS to get control -->
+<OpenCmd>^M~!!!Attn</OpenCmd><!-- Get a Cmd: prompt -->
+<OpenCmd>^M~!!!Attn</OpenCmd><!-- Get a Cmd: prompt -->
+<OpenCmd>XFLOW OFF!!!XFLOW</OpenCmd><!-- KISS never wants flow control -->
+<OpenCmd>FULLDUP OFF!!!FULLDUP</OpenCmd><!-- Turn off full duplex to keep carrier detec -->
+<OpenCmd>KISS ON!!!KISS</OpenCmd><!-- Set KISS Mode -->
+<OpenCmd>RESTART!RESTART!0!RESTART</OpenCmd><!-- Restart the TNC -->
+<CloseCmd>^192^255^192!?^013!!KISS Off</CloseCmd><!-- Turn KISS Off when we're done -->
+<XmitFormat>KISS</XmitFormat>
+</D700-KISS>
