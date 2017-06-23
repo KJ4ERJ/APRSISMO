@@ -92,6 +92,9 @@ local hp_modules = require "hp-modules"
 local hp_config = require "hp-config"
 
 if Application:isDesktop() then
+	if type(MOAIGfxDevice.setTextureLogging) == 'function' then
+		MOAIGfxDevice.setTextureLogging(true)
+	end
 	if type(MOAISim.setHistogramEnabled) == 'function' then
 		MOAISim.setHistogramEnabled ( true )
 	end
@@ -862,17 +865,17 @@ setPrintCallback(function(output, where)
 				syslogIP = nil
 			end
 			if not syslogIP then
-				syslogIP, text = socket.dns.toip(syslogNode)
+				syslogIP, text2 = socket.dns.toip(syslogNode)
 				if syslogIP then
 					MOAILogMgr.log("Syslog:"..tostring(homeIP)..'\n')
 					udp:setpeername("*",0) -- Unbind first
 					udp:setpeername(syslogIP, syslogPort) -- Address the configured (firewall) port
-				else MOAILogMgr.log("Syslog:"..tostring(text)..'\n')
+				else MOAILogMgr.log("Syslog("..syslogNode..") dns error "..tostring(text2)..'\n')
 				end
 			end
 			if syslogIP then
-				local status, text = udp:send(text)
-				if not status then MOAILogMgr.log("syslog:"..text.."\n") end
+				local status, text2 = udp:send(text)
+				if not status then MOAILogMgr.log("syslog:"..text2.."\n") end
 			else MOAILogMgr.log("Syslog:NOT Sending "..text.."\n")
 			end
 		end
@@ -1062,6 +1065,11 @@ config.Environment.documentDirectory = tostring(MOAIEnvironment.documentDirector
 config.Environment.externalCacheDirectory = tostring(MOAIEnvironment.externalCacheDirectory)
 config.Environment.externalFilesDirectory = tostring(MOAIEnvironment.externalFilesDirectory)
 config.Environment.resourceDirectory = tostring(MOAIEnvironment.resourceDirectory)
+
+if type(config.lastTemps) == 'nil' then config.lastTemps = false end
+if type(config.lastDim) == 'nil' then config.lastDim = false end
+if type(config.lastLabels) == 'nil' then config.lastLabels = true end
+if type(config.lastMapScale) == 'nil' then config.lastMapScale = 1 end
 
 local mouseX = 0
 local mouseY = 0
