@@ -1914,6 +1914,19 @@ function MBTile:getMetaValue(key)
 	return nil
 end
 
+function MBTile:setMetaValue(key, value)
+	local cur, err = self.conn:execute("update metadata set value='"..value.."' where name='"..key.."'")
+	if cur then
+		print("Update MetaValue("..key..") to("..value..") returned "..tostring(cur))
+		if tonumber(cur) == 1 then
+			return true
+		else return false
+		end
+	else print("sqlite:Update "..key.." metadata in "..self.db.." err:"..tostring(err))
+	end
+	return false
+end
+
 function MBTile:_init(db)
 	local err
 	self.db = db
@@ -1934,6 +1947,17 @@ function MBTile:_init(db)
 		return nil, "Non-MBTiles Database"
 	end
 	self.URLFormat = self:getMetaValue("URLFormat")
+	if self.URLFormat then
+		local remainder = self.URLFormat:match("^http\://ldeffenb\.dnsalias\.net:6360(.+)$")
+		if remainder then
+			self.URLFormat = "http://ldeffenb.dnsalias.net:14160"..remainder
+			if self:setMetaValue("URLFormat", self.URLFormat) then
+				toast.new("Corrected "..db.." URLFormat to "..self.URLFormat)
+			else toast.new("Failed To Update URLFormat in "..db)
+			end
+		else print("URLFormat("..self.URLFormat..") not ldeffenb in "..db)
+		end
+	end
 	self.bounds = self:getMetaValue("bounds")
 	if self.bounds then
 		performWithDelay(1000, function()
@@ -2847,6 +2871,7 @@ if debugging then print(string.format('[%i] loading %i,%i,%i file:%s dir:%s', n,
 		local now = MOAISim.getDeviceTime()*1000
 		
 --[[
+http://ldeffenb.dnsalias.net:6360/osm/%z/%x/%y.png
 		local server = URL:match("http://(.-)[:/].+")
 		print("dns server "..tostring(server).." from "..tostring(URL))
 		if server then
