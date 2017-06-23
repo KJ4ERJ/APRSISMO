@@ -92,8 +92,8 @@ local hp_modules = require "hp-modules"
 local hp_config = require "hp-config"
 
 if Application:isDesktop() then
-	if type(MOAIGfxDevice.setTextureLogging) == 'function' then
-		MOAIGfxDevice.setTextureLogging(true)
+	if type(MOAIGfxDevice.enableTextureLogging) == 'function' then
+		MOAIGfxDevice.enableTextureLogging(true)
 	end
 	if type(MOAISim.setHistogramEnabled) == 'function' then
 		MOAISim.setHistogramEnabled ( true )
