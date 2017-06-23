@@ -2172,11 +2172,11 @@ function MBTile:saveTile(n,x,y,z,buffer)
 								local start = MOAISim.getDeviceTime()
 								local count, err = self.conn:execute("COMMIT")
 								local elapsed = string.format("%.2f", (MOAISim.getDeviceTime() - start) * 1000)
-								print("sqlite:saveTile:Commit("..tostring(trans)..") took "..elapsed.." msec")
+								print("sqlite:saveTile:Commit("..tostring(self.trans)..") took "..elapsed.." msec")
 	--toast.new("Commit("..tostring(trans)..") in "..tostring(elapsed).." msec", 2000)
 								self.trans = 0
 							else
-								print("sqlite:saveTile:Huh?  Trans is "..tostring(trans).."?")
+								print("sqlite:saveTile:Huh?  Trans is "..tostring(self.trans).."?")
 							end
 						end)
 			end
@@ -2243,7 +2243,12 @@ local MBinited = false
 --local contents = nil
 
 function osmTiles:getMBTilesCounts()
-	return TopTiles and TopTiles.contents or nil
+	if TopTiles and TopTiles.contents then
+		return TopTiles.contents
+	elseif MBTiles and MBTiles.contents then
+		return MBTiles.contents
+	else return nil
+	end
 end
 
 local function initMBTiles(force)
@@ -2934,7 +2939,7 @@ if debugging then print("osmPlanetListener["..n.."]:Loading1.5 "..dir..'/'..file
 			MBTiles:saveTile(n,x,y,z,buffer)
 
 			local function checkPrefetch(x2,y2,z2)
-				if false and not MBTiles:checkTile(0, x2,y2,z2) then
+				if not MBTiles:checkTile(0, x2,y2,z2) then
 					local file2, dir2 = osmTileFileDir(x2,y2,z2,MBTiles)
 --					print("Prefetch "..file2.." or z="..tostring(z2).." x="..tostring(x2).." y="..tostring(y2))
 					osmRemoteLoadTile(0, x2,y2,z2, MBTiles)
@@ -2959,11 +2964,12 @@ if debugging then print("osmPlanetListener["..n.."]:Loading1.5 "..dir..'/'..file
 	stream:close()
 
 --print("osmPlanetListener:tile("..file..") queued:"..tostring(queuedFiles[file]).." download:"..tostring(downloadingFiles[file]))
+	local startedLoading = osmLoading[n]
 	osmLoading[n] = nil
 	queuedFiles[file] = nil
 	downloadingFiles[file] = nil
 	if itWorked then
-		--print (string.format("Loaded in %ims", now-(osmLoading[n] or 0)))
+		--print (string.format("Loaded in %ims", now-(startedLoading or 0)))
 		tilesLoaded = tilesLoaded + 1
 		if expected then
 if debugging then print('osmPlanetListener['..n..']: displaying '..x..' '..y..' '..z..' from '..URL) end
@@ -2973,7 +2979,7 @@ if debugging then print('osmPlanetListener['..n..']: displaying '..x..' '..y..' 
 			--show256(event.response.filename)
 			--tileGroup.tile.alpha = 0	-- and fade in the new tile
 			--transition.to( tileGroup.tile, { alpha = 1.0, time=1000 } )
-			if debugging then print (string.format("osmPlanetListener[%i]:Loaded %s/%s in %ims", n, dir, file, now-(osmLoading[n] or 0))) end
+			if debugging then print (string.format("osmPlanetListener[%i]:Loaded %s/%s in %ims", n, dir, file, now-(startedLoading or 0))) end
 		else
 if debugging and n > 0 then print('osmPlanetListener['..n..']:LATE '..x..','..y..','..z..' wants '..tileGroup.tiles[n].xTile..','..tileGroup.tiles[n].yTile..','..tileGroup.tiles[n].zTile) end
 			lateCount = lateCount + 1
@@ -3002,7 +3008,7 @@ if debugging and n > 0 then print('osmPlanetListener['..n..']:LATE '..x..','..y.
 		errorCount = errorCount + 1
 		print("planetListener["..tostring(n).."]:Marking failure for "..tostring(URL))
 		recentFailures[URL] = now
-		print (string.format("planetListener[%d]:Loading FAILED in %ims", n, now-(osmLoading[n] or 0)))
+		print (string.format("planetListener[%d]:Loading FAILED in %ims", n, now-(startedLoading or 0)))
 --[[		do
 			local server = URL:match("http://(.-)[:/].+")
 			print("dns server "..tostring(server).." from "..tostring(URL))
