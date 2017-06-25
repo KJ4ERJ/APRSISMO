@@ -702,7 +702,7 @@ config:addNumber("Screen", "Screen.NWSOpacity", "NWS Area Opacity %", 10, 0, 100
 config:addBoolean("Screen", "Screen.PositPop", "Pop-and-Shrink Beacon Indicator", true)
 config:addBoolean("Screen", "Screen.RedDot", "GeniusBeaconing™ Debug Aid (aka MeatBall)", true)
 config:addBoolean("Screen", "Screen.RangeCircle", "Zoom/Range Indicator", true)
-config:addNumberF("Screen", "Screen.SymbolSizeAdjust", "Symbol Size Scale Adjustment", 0, -10, 10)
+config:addNumberF("Screen", "Screen.SymbolSizeAdjust", "Symbol Size Scale Adjustment", 0, -10, 10, function() osmTiles:moveTo() end)
 config:addNumber("Screen", "Screen.ScaleButtons", "Scale Options (1111-9999)", 1234, 1111, 9999)
 
 if not (MOAIEnvironment.screenDpi and MOAIEnvironment.screenDpi > 0) or Application:isDesktop() then
