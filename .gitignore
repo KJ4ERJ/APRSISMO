@@ -4,6 +4,7 @@ luac.out
 # APRSISMO Configuration files
 APRSISMO.xml
 APRSISMO.xml-Safe
+APRSISMO-capture.png
 
 # luarocks build files
 *.src.rock
@@ -36,6 +37,7 @@ APRSISMO.xml-Safe
 *.dylib
 
 # Executables
+*.bat
 *.exe
 *.out
 *.app
@@ -43,4 +45,3 @@ APRSISMO.xml-Safe
 *.x86_64
 *.hex
 
-APRSISMO-capture.png
