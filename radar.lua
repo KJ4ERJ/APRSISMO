@@ -145,7 +145,7 @@ end
 local function radarFetch(name, callback)	-- Callback gets passed name, filepath, task
 	radarFetching = true
 --http://radar.weather.gov/ridge/graphics/southplainsth.gif	
-	local URL = "http://radar.weather.gov/ridge/Conus/RadarImg/"..name..radarSuffix..".gif"
+	local URL = "https://radar.weather.gov/ridge/Conus/RadarImg/"..name..radarSuffix..".gif"
 
 	print(os.date("%H:%M:%S").." Radar:Fetching "..URL)
 	
@@ -183,7 +183,7 @@ end
 
 local function radarFetchThumb(name)	-- Callback gets passed name, filepath, task
 --http://radar.weather.gov/ridge/graphics/southplainsth.gif	
-	local URL = "http://radar.weather.gov/ridge/graphics/"..name.."th.gif"
+	local URL = "https://radar.weather.gov/ridge/graphics/"..name.."th.gif"
 
 	print(os.date("%H:%M:%S").." Radar:Fetching Thumb:"..URL)
 	
@@ -257,7 +257,7 @@ local function radarFleshOutList()
 	for k,v in pairs(radarConfig) do 
 		if type(v.gotInfo) == 'nil' then	-- Need to try this one
 			didOne = true
-			local URL = "http://radar.weather.gov/ridge/Conus/RadarImg/"..k..radarSuffix..".gfw"	-- Get the world file
+			local URL = "https://radar.weather.gov/ridge/Conus/RadarImg/"..k..radarSuffix..".gfw"	-- Get the world file
 
 			radarConfiguring = "Fleshing "..k
 			print(os.date("%H:%M:%S").." Radar:Fetching gfw "..URL)
@@ -326,7 +326,7 @@ local function radarGetList()
 
 	radarConfiguring = "Get List"
 
-	local URL = "http://radar.weather.gov/ridge/Conus/RadarImg/"	-- Get list of files, looking for *.gfw
+	local URL = "https://radar.weather.gov/ridge/Conus/RadarImg/"	-- Get list of files, looking for *.gfw
 
 --[[	http://radar.weather.gov/ridge/Conus/RadarImg/southeast_radaronly.gif
 http://radar.weather.gov/ridge/Conus/RadarImg/southeast_radaronly.gfw

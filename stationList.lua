@@ -38,7 +38,7 @@ local function sayTime(src)
 				report = report..string.format('%s:%.2f', k, times[k]*1000)
 			end
 		end
-		if times["Total"] > 5/1000 then print(src..':'..report) end
+		if times["Total"] > 10/1000 then print(src..':'..report) end
 		--times = nil
 		times = {}
 	end
@@ -618,7 +618,7 @@ print("imagesInitialized:"..tostring(imagesInitialized).." targetSize:"..targetS
 	local sheet = imageSheet1
 	if tab ~= '/' then sheet = imageSheet2 end	-- Must be alternate or overlayed
 
-	print("MOAIImage:"..tostring(MOAIImage).." MOAIImageTexture:"..tostring(MOAIImageTexture))
+--	print("MOAIImage:"..tostring(MOAIImage).." MOAIImageTexture:"..tostring(MOAIImageTexture))
 	if MOAIImageTexture and type(MOAIImageTexture.new) == "function" then
 		image = MOAIImageTexture.new()
 	else image = MOAIImage.new()
