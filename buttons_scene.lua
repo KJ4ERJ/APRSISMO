@@ -561,7 +561,7 @@ print("gpxButton:"..tostring(mapScene).." "..type(mapScene.showGPXs).." "..tostr
     }
 	brightButton:setScl(config.Screen.scale,config.Screen.scale,1)
 ]]
---[[    radarButton = Button {
+    radarButton = Button {
         text = "Radar",
 		red=buttonAlpha, green=buttonAlpha, blue=buttonAlpha, alpha=buttonAlpha,
         size = {100, 66},
@@ -575,7 +575,7 @@ print("gpxButton:"..tostring(mapScene).." "..type(mapScene.showGPXs).." "..tostr
 					end,
     }
 	radarButton:setScl(config.Screen.scale,config.Screen.scale,1)
-]]
+
     dimButton = Button {
         text = "Dim",
 		red=buttonAlpha, green=buttonAlpha, blue=buttonAlpha, alpha=buttonAlpha,

@@ -1175,22 +1175,28 @@ local maxElapsed, maxRecentElapsed = 0,0
 local lastLat, lastLon
 
 service.locationListener = function( lng, lat, ha, alt, va, speed, heading, fromGPS )
+	local locSource
+	local netSource = 'net'
+	if type(fromGPS) == 'nil' then
+		locSource = "???"
+	elseif fromGPS then
+		locSource = "GPS"
+	else locSource = netSource
+	end
 	function dump( lat, lon, alt, speed, heading, acc )
 		alt = alt or -9997
 		speed = speed or -3
 		heading = heading or -3
 		print ( string.format("Location Provider:%s:lat:%.7f lon:%.7f alt:%.2f spd:%.1f@%.1f acc:%i",
-				(fromGPS and "GPS" or "net"),
-				lat, lon, alt, speed, heading, acc) )
+				locSource, lat, lon, alt, speed, heading, acc) )
 	end
 	--dump( lat, lng, alt, speed, heading, ha )
 	if type(speed) == 'number' and speed > 0 then
 		speed = kphToKnots(speed * 3.6)	-- convert meters per second to kilometers per hour to knots
 	end
 	if gpstext then
-		local text = string.format('%s%s',
-									fromGPS and "GPS " or "",
-									FormatLatLon(lat, lng, 1, 0))
+		local text = string.format('%s %s',
+									locSource, FormatLatLon(lat, lng, 1, 0))
 		if MOAIEnvironment.GPSListening then
 			text = tostring(MOAIEnvironment.GPSListening).." "..text
 		end
@@ -1225,10 +1231,10 @@ service.locationListener = function( lng, lat, ha, alt, va, speed, heading, from
 	locationCounter = locationCounter + 1
 	if config.Enables.GPS then
 	
-		local tWhy = (fromGPS and "gps" or "network")..'~'..math.floor(ha)
+		local tWhy = locSource..'~'..math.floor(ha)
 		addCrumb(lat, lng, alt, tWhy)
 
-		if fromGPS or config.Enables.AllowNetworkFix then
+		if locSource ~= netSource or config.Enables.AllowNetworkFix then
 			serviceActive = true
 			moveME(lat, lng, alt, heading, speed, ha)
 			serviceActive = false

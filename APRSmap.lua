@@ -327,6 +327,7 @@ end
 local function showGPX(gpxFile, color, width, alpha)
 	local xmlapi = require( "xml" ).newParser()
 	local gpx = xmlapi:loadFile( gpxFile, "." )
+	if not gpx then return gpx end
 	simplified = xmlapi:simplify( gpx )
 	--print(printableTable(gpxFile, simplified))
 	--dumpTable(gpxFile, simplified)
@@ -445,13 +446,17 @@ function onStart()
 --		table.insert(gpxFiles,showGPX("2016MSC_50_206nodes.gpx", "red", 5, 0.4))
 --		table.insert(gpxFiles,showGPX("2016MSC_21_83nodes.gpx", "darkblue", 3, 0.3))
 
-		table.insert(gpxFiles,showGPX("2017bikemscitrustour/Sat103_228nodes.gpx", "crimson", 9, 0.6))
-		table.insert(gpxFiles,showGPX("2017bikemscitrustour/Sat78_170nodes.gpx", "darkgreen", 7, 0.5))
-		table.insert(gpxFiles,showGPX("2017bikemscitrustour/Sat50_146nodes.gpx", "red", 5, 0.4))
+		local function addGPX(path)
+			if path then table.insert(gpxFiles,path) end
+		end
 
-		table.insert(gpxFiles,showGPX("2017bikemscitrustour/Sun78_213nodes.gpx", "crimson", 9, 0.6))
-		table.insert(gpxFiles,showGPX("2017bikemscitrustour/Sun50_140nodes.gpx", "darkgreen", 7, 0.5))
-		table.insert(gpxFiles,showGPX("2017bikemscitrustour/Sun20_28nodes.gpx", "red", 5, 0.4))
+		addGPX(showGPX("2017bikemscitrustour/Sat103_228nodes.gpx", "crimson", 9, 0.6))
+		addGPX(showGPX("2017bikemscitrustour/Sat78_170nodes.gpx", "darkgreen", 7, 0.5))
+		addGPX(showGPX("2017bikemscitrustour/Sat50_146nodes.gpx", "red", 5, 0.4))
+
+		addGPX(showGPX("2017bikemscitrustour/Sun78_213nodes.gpx", "crimson", 9, 0.6))
+		addGPX(showGPX("2017bikemscitrustour/Sun50_140nodes.gpx", "darkgreen", 7, 0.5))
+		addGPX(showGPX("2017bikemscitrustour/Sun20_28nodes.gpx", "red", 5, 0.4))
 
 --		table.insert(gpxFiles,showGPX("Panhandle_96nodes.gpx", "crimson", 9, 0.4))
 
