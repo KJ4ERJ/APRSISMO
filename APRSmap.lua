@@ -444,6 +444,9 @@ function onStart()
 	--gpxFiles[#gpxFiles+1] = showGPX("2016_R4R_10_MilesA_64nodes.gpx", "darkcyan", 3)
 
 	performWithDelay(1000, function()
+
+--		table.insert(gpxFiles,showGPX("TSE-2017-August-21-Umbral-Path.gpx", "crimson", 9, 0.6))
+	
 --		table.insert(gpxFiles,showGPX("2017_-_101_mi_TDC_462nodes.gpx", "crimson", 9, 0.6))
 --		table.insert(gpxFiles,showGPX("2017_-_63_mi_TDC_340nodes.gpx", "darkgreen", 7, 0.5))
 --		table.insert(gpxFiles,showGPX("2017_-_50_mi_TDC_330nodes.gpx", "red", 5, 0.4))
@@ -465,13 +468,11 @@ function onStart()
 			if path then table.insert(gpxFiles,path) end
 		end
 
-		addGPX(showGPX("2017bikemscitrustour/Sat103_228nodes.gpx", "crimson", 9, 0.6))
-		addGPX(showGPX("2017bikemscitrustour/Sat78_170nodes.gpx", "darkgreen", 7, 0.5))
-		addGPX(showGPX("2017bikemscitrustour/Sat50_146nodes.gpx", "red", 5, 0.4))
+		addGPX(showGPX("2017R4R/2017_R4R_60_Mile_Actual_63_342nodes.gpx", "crimson", 9, 0.6))
+		addGPX(showGPX("2017R4R/2017_R4R_30_Mile_Actual_33_186nodes.gpx", "darkgreen", 7, 0.5))
+		addGPX(showGPX("2017R4R/2017_R4R_10_Mile_Actual_10_138nodes.gpx", "red", 5, 0.4))
+		addGPX(showGPX("2017R4R/2017_R4R_3.5_Mile_Actual_3.5_50nodes.gpx", "darkblue", 3, 0.3))
 
-		addGPX(showGPX("2017bikemscitrustour/Sun78_213nodes.gpx", "crimson", 9, 0.6))
-		addGPX(showGPX("2017bikemscitrustour/Sun50_140nodes.gpx", "darkgreen", 7, 0.5))
-		addGPX(showGPX("2017bikemscitrustour/Sun20_28nodes.gpx", "red", 5, 0.4))
 
 --		table.insert(gpxFiles,showGPX("Panhandle_96nodes.gpx", "crimson", 9, 0.4))
 
