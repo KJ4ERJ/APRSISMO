@@ -37,9 +37,10 @@ print(printableTable('onCreate:QSO',QSO))
 
 	if QSO.to == 'ANSRVR' and QSO.additional then
 		local now = MOAISim.getDeviceTime()
-		if not QSO.refreshed or (now-QSO.refreshed) > 30*60 then	-- only every 30 seconds
+		if not QSO.refreshed or (now-QSO.refreshed) > 30*60 then	-- only every 30 minutes
 			local text = 'J '..QSO.additional
-			sendStatus = sendAPRSMessage(QSO.to, text, QSO.additional)
+--			sendStatus = sendAPRSMessage(QSO.to, text, QSO.additional)
+			sendStatus = sendAPRSMessage(QSO.to, text)
 			if not sendStatus then QSO.refreshed = now else print('QSO:onCreate:sendStatus(J):'..sendStatus) end
 		end
 	end
@@ -392,7 +393,9 @@ print(printableTable('onStart:QSO',QSO))
 									local sendStatus
 									if QSO.to == 'ANSRVR' and QSO.additional then
 										local text = 'CQ '..QSO.additional..' '..e.value
-										sendStatus = sendAPRSMessage(QSO.to, text, QSO.additional)
+--										sendStatus = sendAPRSMessage(QSO.to, text, QSO.additional)
+										QSOs:newQSOMessage(QSO, "ME", QSO.to, text)
+										sendStatus = sendAPRSMessage(QSO.to, text)
 									else
 										sendStatus = sendAPRSMessage(QSO.to, e.value)
 									end

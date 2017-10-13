@@ -114,6 +114,7 @@ function QSOs:newQSOMessage(QSO, from, to, text, when)
 print("Msg:gotAnAck/Rej("..ack..") from:"..from.." to:"..to.." #QSO="..tostring(#QSO))
 		for i = #QSO, 1, -1 do
 			local QSOi = QSO[i]
+			print(printableTable("QSOi",QSOi," "))
 			if QSOi.ack	then -- We must be expecting an ack!
 			if (QSOi.ack==ack or (ack:sub(3,3)=='}' and QSOi.ack:sub(1,3)==ack:sub(1,3))) then
 			if QSOi.from==to and QSOi.to==from then	-- Reverse direction!
@@ -170,15 +171,19 @@ print("Msg:nfdAck("..ack..") from:"..from.." to:"..to)
 end
 
 function QSOs:newMessage(from, to, text, when)
+	print("newMessage:from:"..from.." to:"..to.." text:"..text);
 	if to == 'ME' then
 		local s, e, group = string.find(text, "^N:(.-)%s")
 		if group then
 			local newText = '('..from..') '..text:sub(#group+3)
 			local QSO = QSOs:getQSO("ANSRVR", "ME", group)
+			print(printableTable("GroupQSO", QSO, " "));
 			QSOs:newQSOMessage(QSO, from, to, newText)
 		end
 	end
-	return QSOs:newQSOMessage(QSOs:getQSO(from, to), from, to, text, when)
+	local found = QSOs:getQSO(from, to)
+	print(printableTable("newMsgQSO", found, " "));
+	return QSOs:newQSOMessage(found, from, to, text, when)
 end
 
 function QSOs:replyAck(from, to, ack)
