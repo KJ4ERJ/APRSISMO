@@ -188,14 +188,16 @@ function performWithDelay (delay, func, repeats, ...)
 ]]
 end
 
-function printableTable(w, t, s)
+function printableTable(w, t, s, p)
 	if type(w) == 'table' then
-		s = t; t = w; w = nil
+		p = s; s = t; t = w; w = nil
 	end
 	s = s or ' '
 	local r
+	local g = true
 	if not w then
 		r = ''
+		g = false
 	elseif w == '' then
 		r = 'Table ='
 	else r = 'Table['..w..'] ='
@@ -208,7 +210,8 @@ function printableTable(w, t, s)
 					v = string.format('%.3f', v)
 				end
 			end
-			r = r..s..tostring(k)..'='..tostring(v)
+			if g or p then r = r..s else g = true end
+			r = r..tostring(k)..'='..tostring(v)
 		end
 		local did = {}
 		for k, v in ipairs(t) do	-- put the contiguous numerics in first
@@ -577,6 +580,45 @@ local function commandChooser(config, id, newValue)
 	SceneManager:openScene("file_scene", {match="^Cmd-.+%.xml$", config=config, titleText="Select Command File", newValue=fileChosen, animation = "popIn", backAnimation = "popOut", })
 end
 
+
+
+
+local function dropboxChooser(config, id, newValue)
+	print("Activated dropboxChooser")
+--[[
+config:addString("Dropbox", "Dropbox.AccessCode", "Code returned by Dropbox", -1, "")
+config:addString("Dropbox", "Dropbox.AccessToken", "Token returned by Dropbox", -1, "")
+]]
+	if config.Dropbox.AccessCode ~= '' then
+		local entries = { }
+--[[	for device in string.gmatch(MOAIEnvironment.BTDevices,"[^\r\n]+") do
+			local name, address = string.match(device,"(.-)%((.-)%)")
+			if name and address then
+				table.insert(entries, {label=name, value=name, detail=address})
+			else toast.new("BT:Failed to parse "..tostring(device))
+			end
+		end]]
+		SceneManager:openScene("chooser_scene", {config=config, titleText="Select Dropbox file", entries=entries, newValue=newValue, animation = "popIn", backAnimation = "popOut", })
+	else
+	
+if MOAIApp then
+	if type(MOAIApp.openURL) == 'function' then
+		MOAIApp.openURL("https://www.dropbox.com/oauth2/authorize?response_type=code&client_id=f2xxipuqrcaytsu&redirect_uri=http://localhost:8080/APRSISMO.code")
+	else toast.new("Oops, Missing MOAIApp.openURL("..type(MOAIApp.openURL)..")!")
+	end
+else toast.new("Oops, Missing MOAIApp("..type(MOAIApp)..")!")
+end
+
+		SceneManager:openScene("chooser_scene", {config=config, titleText="No Dropbox", values={"** No Dropbox Access **", "Please approve APRSISMO access"}, newValue=function() end, animation = "popIn", backAnimation = "popOut", })
+
+	end
+end
+
+
+
+
+
+
 local function symbolChooser(config, id, newValue)
 	local function symbolChosen(s)
 		newValue(s)
@@ -593,12 +635,21 @@ print("telemetry:telem="..tostring(telem))
 	if not telem then
 		telem = require('telemetry')
 print("telemetry:telem="..tostring(telem).." DEFINING!")
---		telem:definePoint("Battery", "Percent", 0,1,0, function() return 0 end)
-		telem:definePoint("Acceleration", "Raw", 0,0.01,0, function() local temp = maxAcceleration
+		telem:definePoint("Acceleration", "Raw", 0,0.01,0, function()
+																local temp = maxAcceleration
 																maxAcceleration = 0
 																return temp
 															end)
-		telem:definePoint("Charging/AC", "Chart/On/Off", 0,1,0, function() return 0 end)
+		telem:definePoint("Battery", "Percent", 0,1,0, function()
+																if type(MOAIEnvironment.BatteryPercent) ~= 'nil' then
+																	local Perc = tonumber(MOAIEnvironment.BatteryPercent)
+																	if Perc then
+																		return Perc
+																	end
+																end
+																return 0
+															end)
+--		telem:definePoint("Charging/AC", "Chart/On/Off", 0,1,0, function() return 0 end)
 		telem:definePoint("GPS+Sat", "Sats/On/Off", 0,1,0, function()
 																local v = 2
 																if config.Enables.GPS then
@@ -768,6 +819,12 @@ config:addBoolean("Syslog", "Syslog.Enabled", "Enable Syslog Transmissions", fal
 config:addString("Syslog", "Syslog.Server", "Syslog Server (ldeffenb.dnsalias.net:6514)",
 					128, "ldeffenb.dnsalias.net:6514")
 
+print("Adding Dropbox group")
+config:addGroup("Dropbox", "Dropbox Access Settings")
+config:addString("Dropbox", "Dropbox.AccessCode", "Code returned by Dropbox", -1, "")
+config:addString("Dropbox", "Dropbox.AccessToken", "Token returned by Dropbox", -1, "")
+config:addChooserString("Dropbox", "Dropbox.SelectedPath", "Test Selected Path", 256, "", dropboxChooser, nil)
+
 config:addGroup("Remote", "Remote Command Setup")
 config:addString("Remote", "OTP.Target", "Target CALLSIGN-SSID", 9, "", nil, nil, function () config.OTP.Target = validateStationID(config.OTP.Target) end)
 config:addString("Remote", "OTP.Secret", "Secret Key for One-Time-Passwords", 128, "", nil, nil, updateOTPSecret)
@@ -879,6 +936,7 @@ setPrintCallback(function(output, where)
 			else MOAILogMgr.log("Syslog:NOT Sending "..text.."\n")
 			end
 		end
+	
 	end
 end)
 
@@ -1429,7 +1487,7 @@ local function onBackButtonPressed ()
 			end
 			return false
 		end
-		performWithDelay(1000, function()
+		performWithDelay(300, function()
 			backTiming = true
 			toast.new('Press Back again to exit', 2000, function() backTiming = false end)
 			performWithDelay(2000, function() backTiming = false end)
@@ -1438,8 +1496,8 @@ local function onBackButtonPressed ()
 		print('First Back Button Suppressed!')
 		return true --true to cancel back
 	end
-	print('main:onBackButtonPressed:Suppressing back for 1 second more')
-	backValid = MOAISim.getDeviceTime() + 1	-- Ignore more backs for 1 second
+	print('main:onBackButtonPressed:Suppressing back for 1/5 second more')
+	backValid = MOAISim.getDeviceTime() + 0.20	-- Ignore more backs for 1/5 second
 	return true	-- This one HAS been proceesed!
 end
 
@@ -1550,16 +1608,30 @@ print('MOAIApp:'..tostring(MOAIApp)..' MOAIAppAndroid:'..tostring(MOAIAppAndroid
 if MOAIApp then
 if type(MOAIApp.setListener) == 'function' then
 	print("Registering MOAIApp's Back Button!")
-	print('Back:'..tostring(MOAIApp.BACK_BUTTON_PRESSED)..' Start:'..tostring(MOAIApp.SESSION_START)..' End:'..tostring(MOAIApp.SESSION_END))
+	print('Back:'..tostring(MOAIApp.BACK_BUTTON_PRESSED)..' or '..tostring(MOAIApp["BACK_BUTTON_PRESSED"])..' Start:'..tostring(MOAIApp.SESSION_START)..' End:'..tostring(MOAIApp.SESSION_END))
 	MOAIApp.setListener ( MOAIApp.BACK_BUTTON_PRESSED, onBackButtonPressed )
 	MOAIApp.setListener ( MOAIApp.MENU_BUTTON_PRESSED, onMenuButtonPressed )
-	MOAIApp.setListener ( MOAIApp.SESSION_START, function() print('MOAIApp:onSessionStart') end )
-	MOAIApp.setListener ( MOAIApp.SESSION_END, function() print('MOAIApp:onSessionEnd') end )
+	
+	local function printEvent(event)
+		if type(MOAIApp[event]) == 'number' then
+			MOAIApp.setListener(MOAIApp[event], function() print("MOAIApp."..event.." fired!") end)
+		else print("No definition for MOAIApp."..event)
+		end
+	end
+	printEvent("SESSION_START")
+	printEvent("SESSION_END")
+	printEvent("ACTIVITY_ON_START")
+	printEvent("ACTIVITY_ON_STOP")
+	printEvent("ACTIVITY_ON_DESTROY")
+	printEvent("ACTIVITY_ON_RESTART")
+	printEvent("EVENT_MEMORY_WARNING")
+	
 else	print('MOAIApp.setListener='..type(MOAIApp.setListener))
 end
 else print('MOAIApp='..type(MOAIApp))
 end
 
+--[[
 if MOAIAppAndroid then
 if type(MOAIAppAndroid.setListener) == 'function' then
 	if MOAIAppAndroid.BACK_BUTTON_PRESSED then
@@ -1574,6 +1646,7 @@ else	print('MOAIAppAndroid.setListener='..type(MOAIAppAndroid.setListener))
 end
 else print('MOAIAppAndroid='..type(MOAIAppAndroid)..' No Back Button Support!')
 end
+]]
 
 --[[
 local function getLuaValue(v)
@@ -1700,6 +1773,7 @@ if MOAINotifications then
 ]]
 else print('No MOAINotifications')
 end
+
 print('MOAIApp:'..tostring(MOAIApp)..' MOAIAppAndroid:'..tostring(MOAIAppAndroid)..' MOAINotificationsIOS:'..tostring(MOAIAppIOS))
 if MOAIApp then
 	print('HAVE MOAIApp!')
@@ -1708,7 +1782,7 @@ if MOAIApp then
 else print('No MOAIApp')
 end
 
-print('MOAIDialog:'..tostring(MOAIDialog)..' MOAIAppAndroid:'..tostring(MOAIDialogAndroid)..' MOAINotificationsIOS:'..tostring(MOAIDialogIOS))
+print('MOAIDialog:'..tostring(MOAIDialog)..' MOAIDialogAndroid:'..tostring(MOAIDialogAndroid)..' MOAIDialogIOS:'..tostring(MOAIDialogIOS))
 if MOAIDialog then
 --[[
 	MOAIDialog.showDialog('Title here', 'This is the message to the user', 'Positive', 'Neutral', 'Negative', true, 
@@ -1723,20 +1797,24 @@ if MOAIDialog then
 ]]
 end
 
+--[[
 	print("Printing /proc/self")
 	for file in lfs.dir("/proc/self") do
 		print( "Found file:/proc/self/" .. file )
 	end
 	print("Done printing /proc/self/*")
+]]
 	local hFile, err = io.open("/proc/self/statm","r")
 	if hFile and not err then
 			local xmlText=hFile:read("*a"); -- read file content
 			io.close(hFile);
-			print(xmlText)	-- virtual, working, share, text, lib, data, dt
 			local s, e, virtual, resident = string.find(xmlText, "(%d+)%s(%d+)")
-			if virtual and resident then print ("virt:"..tostring(virtual).." res:"..tostring(resident)) end
+			if virtual and resident then
+				print ("/proc/self/statm:virt:"..tostring(virtual).." res:"..tostring(resident))
+			else print("/proc/self/statm:"..xmlText)	-- virtual, working, share, text, lib, data, dt
+			end
 	else
-			print( err )
+			print( tostring(err) )
 	end
 
 if config.StationID == "KJ4ERJ-HB" then
@@ -1851,7 +1929,7 @@ if Application:isMobile() then
 	local connTypes = {[MOAIEnvironment.CONNECTION_TYPE_NONE] = 'None',
 						[MOAIEnvironment.CONNECTION_TYPE_WIFI] = 'WiFi',
 						[MOAIEnvironment.CONNECTION_TYPE_WWAN] = 'WWan'}
-	performWithDelay(1000, function ()
+	performWithDelay2("ConnectionMonitor", 1000, function ()
 		if MOAIEnvironment and MOAIEnvironment.connectionType then
 			if MOAIEnvironment.connectionType ~= lastConnType then
 				if (config.Debug.ShowConnections) then
@@ -2044,6 +2122,29 @@ MOAISim:forceGarbageCollection()
 ]]
 
 --require("APRSmap")
+
+--[[if MOAIAppAndroid then
+	local lastBattery = ""
+	print("Running BatteryToaster")
+	performWithDelay2("BatteryToaster", 1000, function()
+							local text = ""
+							if type(MOAIEnvironment.BatteryStatus) ~= 'nil' then
+								text = tostring(MOAIEnvironment.BatteryStatus)
+							end
+							if type(MOAIEnvironment.BatteryPlugged) ~= 'nil' then
+								text = text.." "..tostring(MOAIEnvironment.BatteryPlugged)
+							end
+							if type(MOAIEnvironment.BatteryPercent) ~= 'nil' then
+								text = text.." "..tostring(MOAIEnvironment.BatteryPercent)
+							end
+							print("BatteryToaster:"..tostring(text))
+							if text ~= "" and text ~= lastBattery then
+								toast.new(". "..text.." .", 5000)
+								lastBattery = text
+							end
+						end, 0)
+else print("MOAIAppAndroid="..tostring(type(MOAIAppAndroid)))
+end]]
 
 print("main all done!")
 

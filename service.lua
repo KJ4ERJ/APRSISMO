@@ -1175,6 +1175,7 @@ local maxElapsed, maxRecentElapsed = 0,0
 local lastLat, lastLon
 
 service.locationListener = function( lng, lat, ha, alt, va, speed, heading, fromGPS )
+--	print("service.locationListener:heading:"..tostring(heading).." fromGPS:"..tostring(fromGPS))
 	local locSource
 	local netSource = 'net'
 	if type(fromGPS) == 'nil' then
@@ -1298,6 +1299,109 @@ local function runService()
 	if type(MOAISim.stepGC) == 'function' then MOAISim.stepGC() end
 end
 
+local spoon = require("spoon")
+
+local function GET(opt, req)
+
+	print("GET "..tostring(req.puri.path))
+
+	if req.puri.path == "/favicon.ico" then
+		local inp = io.open("APRSISMO.ico", "rb")
+		if inp then
+			local content = inp:read("*all")
+			inp:close()
+			return spoon.response(200, content, "image/x-icon")
+		else
+			return spoon.Errorpage(404, "No "..tostring(req.puri.path).." on this server")
+		end
+	elseif req.puri.path == "/icon-google.png" then
+		local inp = io.open("icon-google.png", "rb")
+		if inp then
+			local content = inp:read("*all")
+			inp:close()
+			return spoon.response(200, content, "image/png")
+		else
+			return spoon.Errorpage(404, "No "..tostring(req.puri.path).." on this server")
+		end
+	elseif req.puri.path == "/cameras" then
+		local prefix = '<html><head><meta http-equiv="xrefresh" content="10"></head><body>'
+		local stuff = ''
+		local function addCamera(IP, newRow)
+			if stuff == '' then	-- First is larger
+				stuff = '<table><tr><td width=66% rowspan=2 colspan=2><a href="/camera?IP='..IP..'&stream=1"><img width=100% height=200% src="/camera?IP='..IP..'&stream=0"></a>'
+			else
+				if newRow then stuff = stuff.."<tr>" end
+				stuff = stuff..'<td width=33%><a href="/camera?IP='..IP..'&stream=1"><img src="/camera?IP='..IP..'&stream=0"></a>'
+			end
+		end
+		addCamera(52, true)
+		addCamera(55, false)
+		addCamera(51, true)
+		addCamera(53, true)
+		addCamera(54, false)	
+--		local stuff = '<table><tr><td width=66% rowspan=2 colspan=2><img width=100% height=200% src="/camera?IP=52&stream=0"><td width=33%><img src="/camera?IP=55&stream=0"><tr><td width=33%><img src="/camera?IP=51&stream=0"><tr><td width=33%><img src="/camera?IP=53&stream=0"><td width=33%><img src="/camera?IP=54&stream=0"><td>&nbsp;</table>'
+--		local stuff = '<img src="/camera?IP=52&stream=0"><img src="/camera?IP=55&stream=0"><img src="/camera?IP=51&stream=0"><img src="/camera?IP=53&stream=0"><img src="/camera?IP=54&stream=0">'
+		local suffix = '</body></html>'
+		return spoon.response(200, prefix..stuff..suffix)
+	elseif req.puri.path == "/camera" then
+
+		local stream = MOAIMemStream.new ()
+		stream:open ( )
+
+		local cameraContent = nil
+
+		local function getComplete( task, responseCode )
+			local streamSize = stream:getLength()
+
+			if responseCode ~= 200 then
+				print ( "postComplete:Network error:"..responseCode)
+			elseif streamSize == 4294967295 then
+				print ( "postComplete:Size:"..streamSize)
+			else
+				stream:seek(0)
+				cameraContent = stream:read()
+			end
+		end
+
+		local IP = req.puri.pquery.IP or 51
+		local which = req.puri.pquery.stream or 0
+
+		cameraContent = nil
+		local task = MOAIHttpTask.new ()
+		task:setVerb ( MOAIHttpTask.HTTP_GET )
+		task:setUrl ( "http://192.168.10."..tostring(IP).."/cgi-bin/snapshot.cgi?stream="..tostring(which) )
+		task:setStream ( stream )
+		task:setTimeout ( 10 )
+		task:setCallback ( getComplete )
+		task:setUserAgent ( string.format('APRSISMO') )
+		task:setVerbose ( true )
+		local me = MOAICoroutine:currentThread()
+		if me then
+			task:performAsync()
+			while task:isBusy() do
+				coroutine.yield()
+			end
+		else
+			task:performSync ()
+		end
+
+		if cameraContent then
+			return spoon.response(200, cameraContent, "image/jpeg")
+		else
+			return spoon.response(200, string.format("<H1>Nothing To See Here</H1><p>But here's what you told me!</p><table border><tr><td>Opt<td>%s<tr><td>Req<td>%s<tr><td>Method<td>%s<tr><td>URI<td>%s<tr><td>Ver<td>%s<tr><td>Headers<td>%s<tr><td>puri<td>%s<tr><td>puri.ppath<td>%s<tr><td>puri.pquery<td>%s",
+									printableTable(opt,"<BR>"), printableTable(req,"<BR>"),
+									tostring(req.method), tostring(req.uri), tostring(req.httpver),
+									printableTable(req.headers,"<BR>"), printableTable(req.puri,"<BR>"),
+									printableTable(req.puri.ppath,"<BR>"), printableTable(req.puri.pquery,"<BR>")))
+		end
+	else
+		return spoon.response(200, string.format("<H1>Nothing To See Here</H1><p>But here's what you told me!</p><table border><tr><td>Opt<td>%s<tr><td>Req<td>%s<tr><td>Method<td>%s<tr><td>URI<td>%s<tr><td>Ver<td>%s<tr><td>Headers<td>%s<tr><td>puri<td>%s<tr><td>puri.ppath<td>%s<tr><td>puri.pquery<td>%s",
+								printableTable(opt,"<BR>"), printableTable(req,"<BR>"),
+								tostring(req.method), tostring(req.uri), tostring(req.httpver),
+								printableTable(req.headers,"<BR>"), printableTable(req.puri,"<BR>"),
+								printableTable(req.puri.ppath,"<BR>"), printableTable(req.puri.pquery,"<BR>")))
+	end
+end
 
 function service:start(configuration)
 
@@ -1305,6 +1409,11 @@ print("service:start - Starting with "..tostring(configuration))
 
 	if type(configuration) == 'table' and type(configuration.APRSIS) == 'table' then
 		config = configuration
+
+MOAICoroutine.new ():run ( function()
+								spoon.debug = false
+								spoon.spoon({verbose=false, loop=true, port=6362, GET=GET})
+							end)
 
 if MOAIAppAndroid and type(MOAIAppAndroid.setListener) == 'function' and type(MOAIAppAndroid.SERVICE_CALLBACK) == 'number' then
 	print("service:start:Registering MOAIAppAndroid's ServiceCallback as "..tostring(MOAIAppAndroid.SERVICE_CALLBACK))

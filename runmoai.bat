@@ -1,1 +1,1 @@
-D:\MOAI-Stuff\moai-dev3\build\build-vs2013\Debug\moai
+d:\moai-stuff\moai-community\lib\windows\vs2015\Debug\moai %1

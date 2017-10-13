@@ -117,7 +117,22 @@ local function updateMemoryUsage()
 		if type(MOAISim.getPerformance) == 'function' then
 			local newPerf = {MOAISim.getPerformance()}
 			if not lastPerf then lastPerf = newPerf end
-			print("getPerformance returned "..printableTable("newPerf",newPerf," "))
+--[[
+			local text = ''
+			if #newPerf >= 5 then
+				text = text..string.format("getPerformance:fps:%d msec(Action:%.2f Node:%.2f Sim:%.2f Render:%.2f)",
+											newPerf[1], newPerf[2]*1000, newPerf[3]*1000, newPerf[4]*1000, newPerf[5]*1000)
+				if #newPerf >= 7 then
+					local deltaRender = newPerf[6]-lastPerf[6]
+					local deltaRenderTime = (newPerf[7]-lastPerf[7])*1000
+					if deltaRender > 0 then
+						text = text..string.format(" Renders:%d*%.2f=%.2f",
+												deltaRender, deltaRenderTime/deltaRender, deltaRenderTime)
+					end
+				end
+			end
+			if text ~= '' then print(text) end
+]]
 			if #newPerf == 7 then
 				RenderPassCount = newPerf[6]-lastPerf[6]
 				totalRenderCount = newPerf[6]-lastPerf[6]
@@ -1046,7 +1061,7 @@ _G["titleText"] = titleText
 	local function showTelemetry()
 		if config.lastTemps then
 			local text = ""
-			if config.StationID:sub(1,6) == 'KJ4ERJ' and config.lastTemps == 2 then
+			if config.StationID:sub(1,6) == 'KJ4ERJ' and config.lastTemps == 3 then
 				for x,i in ipairs(temps) do
 					if stationInfo[i.ID] and stationInfo[i.ID].telemetry then
 						local station = stationInfo[i.ID]
@@ -1057,6 +1072,18 @@ _G["titleText"] = titleText
 										station.telemetryPackets)
 					end
 				end
+			elseif config.lastTemps == 2 then
+				local function addIf(which)
+					local key = "Battery"..which
+					if type(MOAIEnvironment[key]) ~= 'nil' then
+						text = text..string.format("%s: %s\n", which, tostring(MOAIEnvironment[key]))
+					end
+				end
+				for _, v in pairs({"Percent", "Health", "Status", "Plugged", "ChargeRate", "Technology", "Temperature", "Voltage"}) do
+					addIf(v)
+				end
+				if text == '' then text = "No Battery Statistics"
+				else text = 'Battery Status\n'..text end
 			else
 				local function compare(one,two)
 					if type(one) == 'number' and type(two) == 'number' then
