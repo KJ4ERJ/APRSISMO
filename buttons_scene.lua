@@ -642,17 +642,19 @@ print("gpxButton:"..tostring(mapScene).." "..type(mapScene.showGPXs).." "..tostr
 		size = {100, 66},
 		parent = buttonView, priority=2000000000,
 		onClick = function()
+						if not config.lastTemps then
+							config.lastTemps = 1
+						elseif type(config.lastTemps) == 'number' then
+							config.lastTemps = config.lastTemps + 1
+						else config.lastTemps = 2
+						end
+						local maxValue = 2
 						if config.StationID:sub(1,6) == 'KJ4ERJ' then
-							if not config.lastTemps then
-								config.lastTemps = 1
-							else
-								if type(config.lastTemps) == 'number' then
-									config.lastTemps = config.lastTemps + 1
-								else config.lastTemps = 2
-								end
-								if config.lastTemps > 2 then config.lastTemps = false end
-							end
-						else config.lastTemps = not config.lastTemps
+							maxValue = 3
+						end
+						if not MOAIAppAndroid then maxValue = maxValue - 1 end
+						if type(config.lastTemps) == 'number' and config.lastTemps > maxValue then
+							config.lastTemps = false
 						end
 						fixButtonColors()
 						resetTimer()
