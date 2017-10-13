@@ -11,29 +11,43 @@ local lastID = {}
 local lsObjects = nil
 local lightnings = nil
 local gridSquares = {}
+local strikeSquares = {}
 
-local pendingPackets = {}
+local pendingZones, pendingZones2, pendingStrikes, pendingKills = {}, {}, {}, {}
 
 local header = 'KJ4ERJ-LS>APZLUA,TCPIP*:'
 
 local tGSActive, tStrikeActive, tGSDelta, tStrikeDelta, tPackets = 0, 0, 0, 0, 0
+local tLZActive, tLZDelta = 0, 0
 
 local telem = require('telemetry')
 telem:definePoint("GridSquares", "active", 0,1,0, function() return tGSActive end)
 telem:definePoint("Strikes", "active", 0,5,0, function() return tStrikeActive end)
-telem:definePoint("GridSquares", "net delta", 0,2,-128, function() local t=tGSDelta tGSDelta=0 return t end)
-telem:definePoint("Strikes", "net delta", 0,4,-256, function() local t=tStrikeDelta tStrikeDelta=0 return t end)
+telem:definePoint("StrikeSquares", "active", 0,4,0, function() return tLZActive end)
+--telem:definePoint("GridSquares", "net delta", 0,2,-128, function() local t=tGSDelta tGSDelta=0 tLZDelta=0 return t end)
+telem:definePoint("Strikes", "net delta", 0,4,-256, function() local t=tStrikeDelta tStrikeDelta=0 tGSDelta=0 tLZDelta=0 return t end)
 telem:definePoint("Pkts Sent", "2 min", 0,10,0, function() local t=tPackets tPackets=0 return t end)
 --telem:defineBit("Bit0", "on", 1, function() return 1 end)
 telem:init('Lightning Stats',120, header)
 
-performWithDelay(125, function()
-	local p = table.remove(pendingPackets,1)
-	if p then
-		--print("Sending:"..p)
-		local status = APRSIS:sendPacket(p)
-		if status then print("APRSIS FAILED to send "..p) end
-		tPackets = tPackets + 1
+local msLoop = 62
+local skipped = false
+performWithDelay(msLoop, function()	-- Was 125 prior to 5/24/2017
+	local pending = #pendingZones + #pendingZones2 + #pendingStrikes + #pendingKills
+	local timeNeeded = msLoop * pending * 2	-- The *2 is to account for skipping every other loop
+	if skipped or timeNeeded > 60*1000 then	-- If there's more than 1 minute queued at the slow rate
+		local p = table.remove(pendingZones,1)
+		if not p then p = table.remove(pendingZones2) end
+		if not p then p = table.remove(pendingStrikes) end
+		if not p then p = table.remove(pendingKills) end
+		if p then
+			--print("Sending:"..p)
+			local status = APRSIS:sendPacket(p)
+			if status then print("APRSIS FAILED to send "..p) end
+			tPackets = tPackets + 1
+		end
+		skipped = false;
+	else skipped = true
 	end
 end, 0)
 
@@ -135,11 +149,27 @@ end
 lightnings = load('lightnings.xml','.')
 lsObjects = {}
 if lightnings then
-	for i,s in pairs(lightnings) do
-		if type(s) == 'table' and s.timestamp then
---			print('lightning recalling '..i.." "..tostring(s.timestamp).." "..tostring(s.time))
-			lsObjects[s.timestamp] = s
-			s.time = tonumber(s.time)
+	local tNow = os.date("!*t")
+	tNow.isdst = nil
+	tNow = os.time(tNow)
+	for i,o in pairs(lightnings) do
+		if type(o) == 'table' and o.timestamp then
+--			print('lightning recalling '..i.." "..tostring(o.timestamp).." "..tostring(o.time))
+			lsObjects[o.timestamp] = o
+			o.time = tonumber(o.time)
+
+		if not gridSquares[o.GS] then
+			gridSquares[o.GS] = {} print("Created GS:"..o.GS)
+		end
+		gridSquares[o.GS][o.timestamp] = o
+		gridSquares[o.GS].updated = tNow
+
+		if not strikeSquares[o.LS] then
+			strikeSquares[o.LS] = {} print("Created LS:"..o.LS)
+		end
+		strikeSquares[o.LS][o.timestamp] = o
+		strikeSquares[o.LS].updated = tNow
+
 		else print("lightnings:Ignoring "..tostring(i).."="..tostring(s))
 		end
 	end
@@ -147,12 +177,12 @@ end
 
 function M:killOld(age)
 	local lsActiveCount, lsKillCount, gsActiveCount, gsSentCount, gsKillCount = 0, 0, 0, 0, 0
+	local lzActiveCount, lzSentCount, lzKillCount = 0, 0, 0
 	local tNow = os.date("!*t")
 	tNow.isdst = nil
 	tNow = os.time(tNow)
 	local tOld = tNow - age
 	local kills = {}
-	local xKills = {}
 	for i, o in pairs(lightnings) do
 		if (type(o) == 'table') and o.time then
 			if o.time <= tOld then
@@ -161,12 +191,12 @@ function M:killOld(age)
 					gridSquares[o.GS][o.timestamp] = nil
 					gridSquares[o.GS].updated = tNow
 				end
+				if o.LS and strikeSquares[o.LS] then
+					strikeSquares[o.LS][o.timestamp] = nil
+					strikeSquares[o.LS].updated = tNow
+				end
 				kills[i] = o
 			else lsActiveCount = lsActiveCount + 1
---print("Keeping["..tostring(i).."] "..o.timestamp.." "..tostring(o.time-tOld).." seconds left "..tostring(o.time).." vs "..tostring(tOld).." Now:"..tostring(tNow).." "..type(o.time).." age:"..tostring(age))
---if o.time > tNow then
---xKills[i] = o
---end
 			end
 		else
 			if type(o) == 'table' then
@@ -175,17 +205,7 @@ function M:killOld(age)
 			end
 		end
 	end
-	local xKillCount = 0
-	for i, o in pairs(xKills) do
-		lsObjects[o.timestamp] = nil
-		if o.GS and gridSquares[o.GS] then
-			gridSquares[o.GS][o.timestamp] = nil
-			gridSquares[o.GS].updated = tNow
-		end
-		lightnings[i] = nil
-		xKillCount = xKillCount + 1
-	end
-	if xKillCount > 0 then toast.new("xKilled "..tostring(xKillCount)) end
+
 	local tm = os.date('!*t')
 	for i, o in pairs(kills) do
 --		local tm = os.date('*t', o.time)
@@ -196,7 +216,7 @@ function M:killOld(age)
 --		print("Kill:"..tostring(killPacket))
 		if killPacket then
 			stationList.packetReceived(killPacket)	-- remove it from our local map
-			table.insert(pendingPackets,killPacket)
+			-- table.insert(pendingKills,killPacket)	-- No longer transmit kills (or the original objects)
 			lightnings[i] = nil
 			lsKillCount = lsKillCount + 1
 		end
@@ -205,56 +225,57 @@ function M:killOld(age)
 
 	kills = {}
 	for g,t in pairs(gridSquares) do
-	if type(t) == "table"	then
-	gsActiveCount = gsActiveCount + 1
-	if not t.lastSent or t.updated > t.lastSent then
-		local lat, lon = 0, 0
-		local glat, glon = APRS:GridSquare2LatLon(g)
-		local count = 0
-		for ts,o in pairs(t) do
-			if type(o) == "table" and o.lat and o.lon then
-				lat, lon = lat+o.lat, lon+o.lon
-				count = count + 1
-			end
-		end
---		print(g.." has "..tostring(count).." strikes")
-		if count == 0 then table.insert(kills,g) end
+		if type(t) == "table"	then
+			gsActiveCount = gsActiveCount + 1
+			if not t.lastSent or t.updated > t.lastSent then
+				local lat, lon = 0, 0
+				local glat, glon = APRS:GridSquare2LatLon(g)
+				local count = 0
+				for ts,o in pairs(t) do
+					if type(o) == "table" and o.lat and o.lon then
+						lat, lon = lat+o.lat, lon+o.lon
+						count = count + 1
+					end
+				end
+		--		print(g.." has "..tostring(count).." strikes")
+				if count == 0 then table.insert(kills,g) end
 
-local ID = 'SZ-'..g
-if count > 0 then
-	lat, lon = lat/count, lon/count
-else lat, lon = glat, glon
-end
-	local s = {}
-	local offset = 180/18/10	-- for 4 character gridsquare
-	table.insert(s,{lat=glat-offset/2,lon=glon-offset})
-	table.insert(s,{lat=glat+offset/2,lon=glon-offset})
-	table.insert(s,{lat=glat+offset/2,lon=glon+offset})
-	table.insert(s,{lat=glat-offset/2,lon=glon+offset})
-	table.insert(s,{lat=glat-offset/2,lon=glon-offset})
-	local scale = 2/44	-- Was 0.1
-	local temp = string.char(math.floor(math.log10(scale/.0001)*20+0.9999)+33)
-	scale = math.pow(10,(temp:byte()-33)/20.0)*0.0001
-	for i,p in ipairs(s) do
-		local latOff, lonOff = math.floor((p.lat-lat)/scale+0.5), math.floor((lon-p.lon)/scale+0.5)
-		temp = temp..string.char(latOff+78, lonOff+78)
-	end
---	print("Resulting Multi:"..temp.." vs:IXSXSDIDIX")
-		
-local comment = tostring(count).." strikes }d1"..temp.."{!W00!"
-local packet = header..APRS:ObjectHHMMSS(ID, tm.hour, tm.min, tm.sec,
-									{lat=lat, lon=lon, symbol='\\T', comment=comment}, (count==0))
-stationList.packetReceived(packet)	-- put it on our local map
-table.insert(pendingPackets,1,packet)
-if count == 0 then
-	gsKillCount = gsKillCount + 1
-else gsSentCount = gsSentCount + 1
-end
-t.lastSent = tNow
---	else print(tostring(g).." "..tostring(t.lastSent)..">="..tostring(t.updated))
-	end
-	else print("Skipping ["..tostring(g).."]="..tostring(t))
-	end
+				local ID = 'SZ-'..g
+				if count > 0 then
+					lat, lon = lat/count, lon/count
+				else lat, lon = glat, glon
+				end
+					local s = {}
+					local offset = 180/18/10	-- for 4 character gridsquare
+					table.insert(s,{lat=glat-offset/2,lon=glon-offset})
+					table.insert(s,{lat=glat+offset/2,lon=glon-offset})
+					table.insert(s,{lat=glat+offset/2,lon=glon+offset})
+					table.insert(s,{lat=glat-offset/2,lon=glon+offset})
+					table.insert(s,{lat=glat-offset/2,lon=glon-offset})
+					local scale = 2/44	-- Was 0.1
+					local temp = string.char(math.floor(math.log10(scale/.0001)*20+0.9999)+33)
+					scale = math.pow(10,(temp:byte()-33)/20.0)*0.0001
+					for i,p in ipairs(s) do
+						local latOff, lonOff = math.floor((p.lat-lat)/scale+0.5), math.floor((lon-p.lon)/scale+0.5)
+						temp = temp..string.char(latOff+78, lonOff+78)
+					end
+				--	print("Resulting Multi:"..temp.." vs:IXSXSDIDIX")
+						
+				local comment = tostring(count).." strikes }d1"..temp.."{!W00!"
+				local packet = header..APRS:ObjectHHMMSS(ID, tm.hour, tm.min, tm.sec,
+													{lat=lat, lon=lon, symbol='\\T', comment=comment}, (count==0))
+				stationList.packetReceived(packet)	-- put it on our local map
+				table.insert(pendingZones,packet)
+				t.packet = packet
+				if count == 0 then
+					gsKillCount = gsKillCount + 1
+				else gsSentCount = gsSentCount + 1
+				end
+				t.lastSent = tNow
+		--	else print(tostring(g).." "..tostring(t.lastSent)..">="..tostring(t.updated))
+			end
+		else print("Skipping ["..tostring(g).."]="..tostring(t))
+		end
 	end
 
 	for i, g in pairs(kills) do
@@ -264,7 +285,96 @@ t.lastSent = tNow
 
 	save(gridSquares, 'gridsquares.xml','.')
 	
-	return lsActiveCount, lsKillCount, gsActiveCount, gsSentCount, gsKillCount
+	kills = {}
+	for g,t in pairs(strikeSquares) do
+		if type(t) == "table"	then
+			lzActiveCount = lzActiveCount + 1
+			if not t.lastSent or t.updated > t.lastSent then
+				local lat, lon = 0, 0
+				local glat, glon = APRS:GridSquare2LatLon(g)
+				local count = 0
+				local strike = nil
+				for ts,o in pairs(t) do
+					if type(o) == "table" and o.lat and o.lon then
+						lat, lon = lat+o.lat, lon+o.lon
+						count = count + 1
+						strike = o
+					end
+				end
+		--		print(g.." has "..tostring(count).." strikes")
+				if count == 0 then table.insert(kills,g) end
+
+				local ID = 'LS-'..g
+				if count > 0 then
+					lat, lon = lat/count, lon/count
+				else lat, lon = glat, glon
+				end
+				
+				local packet
+				local emptyMultiLine = " }l1!NN{!W00!"
+				if count == 1 and strike ~= nil then
+					packet = header..APRS:ObjectHHMMSS(ID, strike.hour, strike.minute, strike.second,
+														{lat=strike.lat, lon=strike.lon,
+														symbol='\\J', comment=strike.comment..emptyMultiLine})
+					table.insert(pendingZones2,packet)
+					lzSentCount = lzSentCount + 1
+				elseif count == 0 then
+					packet = header..APRS:ObjectHHMMSS(ID, tm.hour, tm.min, tm.sec,
+													{lat=lat, lon=lon, symbol='\\J',
+													comment="Expired"..emptyMultiLine}, (count==0))
+					table.insert(pendingKills,packet)
+					lzKillCount = lzKillCount + 1
+				else
+					local s = {}
+					local offset = 180/18/10/24	-- for 6 character gridsquare
+					table.insert(s,{lat=glat-offset/2,lon=glon-offset})
+					table.insert(s,{lat=glat+offset/2,lon=glon-offset})
+					table.insert(s,{lat=glat+offset/2,lon=glon+offset})
+					table.insert(s,{lat=glat-offset/2,lon=glon+offset})
+					table.insert(s,{lat=glat-offset/2,lon=glon-offset})
+					local scale = 2/44/24	-- Was 0.1
+					local temp = string.char(math.floor(math.log10(scale/.0001)*20+0.9999)+33)
+					scale = math.pow(10,(temp:byte()-33)/20.0)*0.0001
+					for i,p in ipairs(s) do
+						local latOff, lonOff = math.floor((p.lat-lat)/scale+0.5), math.floor((lon-p.lon)/scale+0.5)
+						temp = temp..string.char(latOff+78, lonOff+78)
+					end
+				--	print("Resulting Multi:"..temp.." vs:IXSXSDIDIX")
+					local symbol = "\\J"
+					if count > 9 then
+						symbol = "9J"
+						temp = "}a0"..temp.."{!W00!"	-- Color and fill the box red for >9
+					else
+						symbol = tostring(count).."J"
+						if count > 5 then
+							temp = "}d0"..temp.."{!W00!"	-- filled yellow is Severe Thunderstorm Warning
+						else temp = "}d1"..temp.."{!W00!"	-- yellow is Severe Thunderstorm Warning
+						end
+					end
+					comment = tostring(count).." strikes "..temp
+					packet = header..APRS:ObjectHHMMSS(ID, tm.hour, tm.min, tm.sec,
+													{lat=lat, lon=lon, symbol=symbol, comment=comment}, (count==0))
+					table.insert(pendingZones2,packet)
+					lzSentCount = lzSentCount + 1
+				end
+				stationList.packetReceived(packet)	-- put it on our local map
+				t.packet = packet
+
+				t.lastSent = tNow
+		--	else print(tostring(g).." "..tostring(t.lastSent)..">="..tostring(t.updated))
+			end
+		else print("Skipping ["..tostring(g).."]="..tostring(t))
+		end
+	end
+
+	for i, g in pairs(kills) do
+		strikeSquares[g] = nil
+		tLZDelta = tLZDelta - 1
+	end
+
+	save(strikeSquares, 'strikesquares.xml','.')
+	
+	return lsActiveCount, lsKillCount, gsActiveCount, gsSentCount, gsKillCount, lzActiveCount, lzSentCount, lzKillCount
 	--if killCount > 0 then toast.new('Killed '..tostring(killCount)..' Old Lightnings', 5000) end
 end
 
@@ -317,7 +427,10 @@ end
 local packet = header..APRS:ObjectHHMMSS(ID, h, min, s,
 									{lat=lat, lon=lon, alt=alt,
 									symbol='\\J', comment=comment})
-local o = {ID=ID, lat=lat, lon=lon, GS=APRS:GridSquare(lat,lon,4), line=line, packet=packet, timestamp=timestamp, time=os.time{year=y,month=mon,day=d,hour=h,min=min,sec=s}}
+local o = {ID=ID, lat=lat, lon=lon, comment=comment, hour=h, minute=min, second=s,
+			GS=APRS:GridSquare(lat,lon,4), LS=APRS:GridSquare(lat,lon,6),
+			line=line, packet=packet, timestamp=timestamp,
+			time=os.time{year=y,month=mon,day=d,hour=h,min=min,sec=s}}
 lsObjects[timestamp] = o
 lightnings[ID] = o
 tStrikeDelta = tStrikeDelta + 1
@@ -329,9 +442,18 @@ gridSquares[o.GS][timestamp] = o
 gridSquares[o.GS].updated = tNow
 --print(timestamp.." in GS:"..o.GS)
 
+if not strikeSquares[o.LS] then
+	strikeSquares[o.LS] = {} print("Created LS:"..o.LS)
+	tLZDelta = tLZDelta + 1
+end
+strikeSquares[o.LS][timestamp] = o
+strikeSquares[o.LS].updated = tNow
+--print(timestamp.." in GS:"..o.GS)
+
+
 --print(tostring(tNow-o.time)..":"..packet)
 stationList.packetReceived(packet)	-- put it on our local map
-table.insert(pendingPackets,packet)
+--table.insert(pendingStrikes,packet)	-- No longer put individual strikes on the map!
 			end
 --else
 --	print("Duplicate Object at "..timestamp)
@@ -420,12 +542,14 @@ function M:getRecentStrokes()
 			print ( "lightning:gotStrokes:Network error:"..responseCode.." from "..URL)
 			toast.new("gotStrokes:Network error:"..responseCode.." from "..URL, 10000)
 		end
-		local lsActiveCount, lsKillCount, gsActiveCount, gsSentCount, gsKillCount = self:killOld(10*60)	-- Kill older than 10 minutes
-		self.lastPass = string.format("Squares:%d Strikes:%d\r\nSqrs:+%d-%d=%d Strk:+%d-%d=%d",
-							gsActiveCount, lsActiveCount,
+		local lsActiveCount, lsKillCount, gsActiveCount, gsSentCount, gsKillCount, lzActiveCount, lzSentCount, lzKillCount
+														= self:killOld(10*60)	-- Kill older than 10 minutes
+		self.lastPass = string.format("Squares:%d Zones:%d Strikes:%d\r\nSZ:+%d-%d=%d LZ:+%d-%d=%d L:+%d-%d=%d",
+							gsActiveCount, lzActiveCount, lsActiveCount,
 							gsSentCount, gsKillCount, gsSentCount-gsKillCount,
+							lzSentCount, lzKillCount, lzSentCount-lzKillCount,
 							lsSentCount, lsKillCount, lsSentCount-lsKillCount)
-		tGSActive, tStrikeActive = gsActiveCount, lsActiveCount
+		tGSActive, tLZActive, tStrikeActive = gsActiveCount, lzActiveCount, lsActiveCount
 
 		performWithDelay(self.delay, function() self:getRecentStrokes() end)
 	end
