@@ -2215,6 +2215,7 @@ function MBTile:saveTile(n,x,y,z,buffer)
 --local where = info.source..':'..info.currentline
 --if where:sub(1,1) == '@' then where = where:sub(2) end
 --print(where..">sqlite:saveTile:INSERT="..tostring(count)..","..tostring(err).." "..tostring(n).." for "..tostring(z).."/"..tostring(x).."/"..tostring(y).." took "..tostring(elapsed1).."+"..tostring(elapsed2).."+"..tostring(elapsed3).."="..tostring(elapsed).." msec")
+--print(where.."Statement:"..stmt)
 				if self.contents then
 					local zc = self.contents and self.contents[z] or nil
 					if not zc then
@@ -2236,6 +2237,7 @@ local info = debug.getinfo( 2, "Sl" )
 local where = info.source..':'..info.currentline
 if where:sub(1,1) == '@' then where = where:sub(2) end
 print(where..">sqlite:saveTile:INSERT="..tostring(count)..","..tostring(err).." "..tostring(n).." for "..tostring(z).."/"..tostring(x).."/"..tostring(y).." took "..tostring(elapsed1).."+"..tostring(elapsed2).."+"..tostring(elapsed3).."="..tostring(elapsed).." msec")
+print(where.."Statement:"..stmt)
 				end
 			end
 	end
@@ -2570,10 +2572,12 @@ local function osmTileFileDir(x,y,z,MBTiles)
 			URL = URL..string.format("%i/%i/%i.png", z, x, y)
 		end
 
+--[[
 		local BSSID = MOAIEnvironment.BSSID
 		if BSSID == "2c:b0:5d:ab:08:17" or BSSID == "08:86:3b:70:84:f6" then	-- My APs!
 			URL = URL:gsub("ldeffenb.dnsalias.net","192.168.10.8",1)
 		end
+]]
 	end
 
 	if not directoryInformed then
@@ -2900,26 +2904,38 @@ http://ldeffenb.dnsalias.net:6360/osm/%z/%x/%y.png
 		local stream = MOAIMemStream.new ()
 		stream:open ( )
 
+--		print("osmReallyLoadRemoteTile["..tostring(n).."]:Prepping for "..tostring(URL))
+
+--		local startedLoading = MOAISim.getDeviceTime()*1000
+
 local function osmPlanetListener( task, responseCode )
 	local now = MOAISim.getDeviceTime()*1000
 	local expected = n >= 1 and n <= #tileGroup.tiles and tileGroup.tiles[n].xTile == x and tileGroup.tiles[n].yTile == y and tileGroup.tiles[n].zTile == z
 	local itWorked = false
 	local tryImage
 
+	local startedLoading = nil
+	if expected then
+		startedLoading = osmLoading[n]
+		osmLoading[n] = nil
+	end
+	
 local streamSize = stream:getLength()
 if debugging then print('osmPlanetListener['..tostring(n)..'] completed with '..tostring(responseCode)..' got '..tostring(streamSize)..' bytes') end
 
 	if responseCode ~= 200 then
-		print ( "osmPlanetListener["..tostring(n).."]:Network error:"..responseCode..' on '..file..' in '..dir)
+		print ( "osmPlanetListener["..tostring(n).."]:Network error:"..responseCode..' from '..tostring(URL).." after "..tostring(now-(startedLoading or 0)).."ms")
 		if responseCode ~= 404 and responseCode ~= 0 then
 			if not config or not config.Debug or config.Debug.TileFailure then
 				toast.new(file..'\nFailure Response:'..tostring(responseCode)..' Bytes:'..tostring(streamSize))
 			end
 		end
 	elseif streamSize == 4294967295 then
-		print ( "osmPlanetListener["..tostring(n).."]:Size:"..streamSize..' on '..file..' in '..dir)
+		print ( "osmPlanetListener["..tostring(n).."]:Size:"..streamSize..' from '..tostring(URL).." after "..tostring(now-(startedLoading or 0)).."ms")
 	else
 if debugging then print("osmPlanetListener["..n.."]:Loading1 "..dir..'/'..file) end
+
+		print("osmPlanetListener["..tostring(n).."]:Checking "..tostring(streamSize).." bytes from "..tostring(URL).." after "..tostring(now-(startedLoading or 0)).."ms")
 
 		local buffer = MOAIDataBuffer.new()
 		stream:seek(0)
@@ -2961,6 +2977,7 @@ if debugging then print("osmPlanetListener["..n.."]:Loading1.5 "..dir..'/'..file
 		if width == 256 and height == 256 then
 			itWorked = true
 --			osmSaveMBTileBuffer(n,x,y,z,buffer)
+			print("osmPlanetListener["..tostring(n).."]:Saving "..tostring(streamSize).." bytes from "..tostring(URL))
 			MBTiles:saveTile(n,x,y,z,buffer)
 
 			local function checkPrefetch(x2,y2,z2)
@@ -2989,8 +3006,6 @@ if debugging then print("osmPlanetListener["..n.."]:Loading1.5 "..dir..'/'..file
 	stream:close()
 
 --print("osmPlanetListener:tile("..file..") queued:"..tostring(queuedFiles[file]).." download:"..tostring(downloadingFiles[file]))
-	local startedLoading = osmLoading[n]
-	osmLoading[n] = nil
 	queuedFiles[file] = nil
 	downloadingFiles[file] = nil
 	if itWorked then
