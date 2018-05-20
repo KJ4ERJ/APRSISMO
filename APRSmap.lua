@@ -468,13 +468,18 @@ function onStart()
 			if path then table.insert(gpxFiles,path) end
 		end
 
-		addGPX(showGPX("2017R4R/2017_R4R_60_Mile_Actual_63_342nodes.gpx", "crimson", 9, 0.6))
-		addGPX(showGPX("2017R4R/2017_R4R_30_Mile_Actual_33_186nodes.gpx", "darkgreen", 7, 0.5))
-		addGPX(showGPX("2017R4R/2017_R4R_10_Mile_Actual_10_138nodes.gpx", "red", 5, 0.4))
-		addGPX(showGPX("2017R4R/2017_R4R_3.5_Mile_Actual_3.5_50nodes.gpx", "darkblue", 3, 0.3))
+--		addGPX(showGPX("2017R4R/2017_R4R_60_Mile_Actual_63_342nodes.gpx", "crimson", 9, 0.6))
+--		addGPX(showGPX("2017R4R/2017_R4R_30_Mile_Actual_33_186nodes.gpx", "darkgreen", 7, 0.5))
+--		addGPX(showGPX("2017R4R/2017_R4R_10_Mile_Actual_10_138nodes.gpx", "red", 5, 0.4))
+--		addGPX(showGPX("2017R4R/2017_R4R_3.5_Mile_Actual_3.5_50nodes.gpx", "darkblue", 3, 0.3))
 
+		addGPX(showGPX("2018TDC/2018_-_101_mi_Tour_de_Cure_224nodes.gpx", "crimson", 9, 0.6))
+		addGPX(showGPX("2018TDC/2018_-_63_mi_Tour_de_Cure_186nodes.gpx", "crimson", 7, 0.6))
+		addGPX(showGPX("2018TDC/2018_-_50_mi_Tour_de_Cure_182nodes.gpx", "darkgreen", 5, 0.5))
+		addGPX(showGPX("2018TDC/2018_-_25_mi_Tour_de_Cure_152nodes.gpx", "red", 3, 0.4))
+		addGPX(showGPX("2018TDC/2018_-_10_mi_Tour_de_Cure_90nodes.gpx", "darkblue", 1, 0.3))
 
---		table.insert(gpxFiles,showGPX("Panhandle_96nodes.gpx", "crimson", 9, 0.4))
+		--table.insert(gpxFiles,showGPX("TSE-2017-August-21-Umbral-Path.gpx", "crimson", 9, 0.4))
 
 		hideGPXs()
 	end)
@@ -511,12 +516,12 @@ function milesToKm(v)
 function kmToMiles(v)
 ]]
 local function gpxWalker(gpx, i, wasLat, wasLon, startTiles)
-	print("gpxWalker:"..tostring(i).."/"..tostring(#gpx))
 	if i < #gpx then
 		local count = osmTiles:getQueueStats()
 		local tolat, tolon = wasLat, wasLon
 		local atlat, atlon = osmTiles:getCenter()
 		if atlat == tolat and atlon == tolon then	-- Only keep going if no one panned the map!
+			local delayTime = 500
 			if count <= 0 then
 				tolat, tolon = gpx[i], gpx[i+1]
 				local hRange, vRange = osmTiles:rangeLatLon()
@@ -543,15 +548,28 @@ local function gpxWalker(gpx, i, wasLat, wasLon, startTiles)
 								j = j - 2	-- Back to the previoulsy ok point
 								tolat, tolon = gpx[j], gpx[j+1]
 							end
+							delayTime = delayTime / 2
 							break
 						end
 						mDist = tDist
 					end
 				end
-				osmTiles:moveTo(tolat, tolon)
-			else print("gpxWalker:"..tostring(count).." Pending Tiles")
+			local tstart = MOAISim.getDeviceTime()
+			osmTiles:moveTo(tolat, tolon)
+			local tqueueCount = osmTiles:getQueueStats()
+			local telapsed = (MOAISim.getDeviceTime() - tstart) * 1000
+print("gpxWalker:Moving "..tostring(i).."/"..tostring(#gpx).." queued "..tostring(tqueueCount).." tiles in "..string.format("%.0f", telapsed).."ms")
+			else
+				delayTime = 250
+print("gpxWalker:Waiting "..tostring(i).."/"..tostring(#gpx).." "..tostring(count).." Pending Tiles")
 			end
-			performWithDelay(500, function() gpxWalker(gpx,i,tolat,tolon,startTiles) end)
+			local queueCount = osmTiles:getQueueStats()
+			if queueCount <= 0 then delayTime = delayTime / 5
+			elseif queueCount <= 4 then delayTime = delayTime / 2
+			end
+			--delayTime = 100
+--print("gpxWalker:Delay "..tostring(delayTime).." for "..tostring(queueCount))
+			performWithDelay(delayTime, function() gpxWalker(gpx,i,tolat,tolon,startTiles) end)
 			osmTiles:showCrosshair()
 		else toast.new("GpxWalk Aborted!  "..tostring(osmTiles:getTilesLoaded()-startTiles).." Loaded")
 		end
