@@ -60,6 +60,10 @@ local centerStation, wasCenter = myStation, nil
 stationInfo = {}
 stationCount = 0
 packetCount = 0
+secondStations = setmetatable({}, {__mode="v"})
+minuteStations = setmetatable({}, {__mode="v"})
+hourStations = setmetatable({}, {__mode="v"})
+dayStations = setmetatable({}, {__mode="v"})
 
 UniqueSymbols = {}
 UniqueSymbolCount = 0
@@ -205,6 +209,103 @@ do
 	local retain = 1*60*60	-- 1 hour as seconds (for os.time()/station.tracks[].when use)
 	local retainStation = 2*60*60	-- 2 hours as seconds for station purging
 	local lastAfter = nil	-- for delta _sys_* calculations
+	
+--second, minute, hour, dayStations
+	local function secondsElapsed(elapsed)
+		return tostring(elapsed).."s", elapsed >= 60
+	end
+	local function minutesElapsed(elapsed)
+		local result = tostring(math.floor(elapsed/60)).."m"
+		if elapsed%60 > 0 then result = result.."+" end
+		return result, elapsed >= 60*60
+	end
+	local function hoursElapsed(elapsed)
+		local result = tostring(math.floor(elapsed/60/60)).."h"
+		if elapsed%3600 > 0 then result = result.."+" end
+		return result, elapsed >= 24*60*60
+	end
+	local function daysElapsed(elapsed)
+		local result = tostring(math.floor(elapsed/24/60/60)).."d"
+		if elapsed%(24*60*60) > 0 then result = result.."+" end
+		return result, false
+	end
+	local function relabelStation(station, now, elapsedFunction)
+		local overflow = false
+		if station.symbolLabel and station.symbolLabel.label.inGroup then
+			local elapsed = now - station.lastHeard
+			elapsed, overflow = elapsedFunction(elapsed)
+--print(station.stationID.." elapsed "..tostring(elapsed).." overflow "..tostring(overflow))
+			local newText = station.stationID.."\n<time>"..tostring(elapsed).."</>"
+			if newText ~= station.symbolLabel.label:getString() then
+				station.symbolLabel.label:setString(newText)
+			end
+		end
+		return overflow
+	end
+	performWithDelay2("UpdateSecondStations", 500, function()
+						local now = os.time()
+						local removes = nil
+						for c,station in pairs(secondStations) do
+							if relabelStation(station, now, secondsElapsed) then
+								if not removes then removes = {} end
+								removes[c] = station
+--print("Moving "..c.." from second to minute")
+							end
+						end
+						if removes then
+							for c,station in pairs(removes) do
+								secondStations[c] = nil
+								minuteStations[c] = station
+								relabelStation(station, now, minutesElapsed)
+							end
+						end
+					end, 0)	-- do it forever
+	performWithDelay2("UpdateMinuteStations", 10000, function()
+						local now = os.time()
+						local removes = nil
+						for c,station in pairs(minuteStations) do
+							if relabelStation(station, now, minutesElapsed) then
+								if not removes then removes = {} end
+								removes[c] = station
+							end
+						end
+						if removes then
+							for c,station in pairs(removes) do
+--print("Moving "..c.." from minute to hour")
+								minuteStations[c] = nil
+								hourStations[c] = station
+								relabelStation(station, now, hoursElapsed)
+							end
+						end
+					end, 0)	-- do it forever
+	performWithDelay2("UpdateHourStations", 10*60*1000, function()
+						local now = os.time()
+						local removes = nil
+						for c,station in pairs(hourStations) do
+							if relabelStation(station, now, hoursElapsed) then
+								if not removes then removes = {} end
+								removes[c] = station
+							end
+						end
+						if removes then
+							for c,station in pairs(removes) do
+--print("Moving "..c.." from hour to day")
+								hourStations[c] = nil
+								dayStations[c] = station
+								relabelStation(station, now, daysElapsed)
+							end
+						end
+					end, 0)	-- do it forever
+	performWithDelay2("UpdateDayStations", 1*60*60*1000, function()
+						local now = os.time()
+						local removes = nil
+						for c,station in pairs(dayStations) do
+							if relabelStation(station, now, daysElapsed) then
+								print("UpdateDayStations should NEVER Overflow!")
+							end
+						end
+					end, 0)	-- do it forever
+
 	performWithDelay2("PurgeStationTracks", 5*60*1000, function()
 							if stationCount > 10 then	-- Don't bother for low station counts
 								local now = os.time()
@@ -835,7 +936,30 @@ print("getSymbolImage:newUnique["..UniqueSymbolCount.."]("..symbol..") for "..st
 	return symbolGroup
 end
 
+local font = MOAIFont.new ()
+font:load ( 'arial-rounded.ttf' )
+--font:load ( 'Dwarves.ttf' )
+--local charcodes = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,:;!?()&/-'
+--font:preloadGlyphs ( charcodes, 24 )
+--font:preloadGlyphs ( charcodes, 32 )
+--font:preloadGlyphs ( charcodes, 42 )
+
+local styles = {}
+local function newStyle ( font, size, r, g, b )
+	if not styles then styles = {} end
+	if not styles[font] then styles[font] = {} end
+	if not styles[font][size] then
+		local style = MOAITextStyle.new ()
+		style:setFont ( font )
+		style:setSize ( size )
+		style:setColor ( r, g, b, 1 )
+		styles[font][size] = style
+	end
+	return styles[font][size];
+end
+
 getSymbolLabel = function(symbol, stationID)
+
 --print('getSymbolLabel('..symbol..') for:'..stationID..' name:'..symbols:getSymbolName(symbol))
 	local start = MOAISim.getDeviceTime()
 	
@@ -849,17 +973,21 @@ getSymbolLabel = function(symbol, stationID)
 		local label = TextLabel { text=stationID, align = {"left", "center"}, }
 --print("getSymbolLabel("..symbol..") for "..stationID.." labelling3...size:"..tostring(symbolLabel.symbol.width)..'x'..tostring(symbolLabel.symbol.height).." scale:"..tostring(symbolLabel.symbol.scale))
 		label.orgTextSize = math.ceil(math.min(symbolLabel.symbol.width,symbolLabel.symbol.height)*0.7*symbolLabel.symbol.scale)
-		label:setTextSize(label.orgTextSize)
+		label:setStyle(newStyle(font, label.orgTextSize, 0, 0, 0))
+		label:setStyle('time', newStyle(font, math.ceil(label.orgTextSize*3/4), 0, 0, 0))
+		label:setString(stationID.."\n<time>new+</>")
+--		label:setTextSize(label.orgTextSize)
+--		label:setColor(0,0,0,1.0)
 		label:fitSize()
 		label:setPriority(1999999)
-		label:setColor(0,0,0,1.0)
 		--label:setLeft(symbolLabel.symbol:getWidth() / 2 * symbolLabel.symbol.scale)
 		--label:setTop(-symbolLabel.symbol:getHeight() / 2 * symbolLabel.symbol.scale)
 		label.xOffset = label:getWidth()/2 + symbolLabel.symbol.width / 2 * symbolLabel.symbol.scale
---		local xMin, yMin, xMax, yMax = label:getStringBounds(1,#stationID)
---print(stationID..' '..label.orgTextSize..'pts height '..label:getHeight()..' xoffset '..label.xOffset..' bounds:'..xMin..','..yMin..'->'..xMax..','..yMax..' or '..(xMax-xMin)..'x'..(yMax-yMin))
+--local xMin, yMin, xMax, yMax = label:getStringBounds(1,#stationID)
+--print(stationID..' '..label.orgTextSize..'pts height '..label:getHeight()..' width '..label:getWidth()..' xoffset '..label.xOffset..' bounds:'..xMin..','..yMin..'->'..xMax..','..yMax..' or '..(xMax-xMin)..'x'..(yMax-yMin))
 		symbolLabel.label = label	-- showSymbol handles this!
 		addTime("Label", MOAISim.getDeviceTime()-start)
+		
 	--end
 	end
 --	stationGroup:resizeForChildren()
@@ -1636,6 +1764,11 @@ end	-- query suppression
 					station.packetsHeard = (station.packetsHeard or 0) + 1
 					station.lastHeard = os.time()
 					station.lastPacket = packetInfo
+					secondStations[station.stationID] = station
+					minuteStations[station.stationID] = nil
+					hourStations[station.stationID] = nil
+					dayStations[station.stationID] = nil
+
 					--lastStation.text = string.format("%s to %s (%i)", packetInfo.src, packetInfo.dst, station.packetsHeard)
 					--lastPath.text = packetInfo.path
 					--lastPayload.text = packetInfo.comment
