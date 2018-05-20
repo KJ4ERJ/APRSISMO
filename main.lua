@@ -371,6 +371,7 @@ else print('NOT loading GPSd on non-desktop()')
 end
 
 local maxAcceleration = 0
+local gpsDisabled = false
 
 StillTime = tostring(MOAIEnvironment.GPSListening).."\n hh:mm:ss "
 local function monitorAccelerometer(enabled)
@@ -382,7 +383,6 @@ if MOAIInputMgr.device.level then
 		local tLast = os.time()
 		local tMove = os.time()
 		local mAccel = 0
-		local gpsDisabled = false
 		local function onLevelEvent ( x, y, z )
 			local tThis = os.time()
 			local mx, my, mz = lx-x, ly-y, lz-z
@@ -650,6 +650,7 @@ print("telemetry:telem="..tostring(telem).." DEFINING!")
 																return 0
 															end)
 --		telem:definePoint("Charging/AC", "Chart/On/Off", 0,1,0, function() return 0 end)
+--[[
 		telem:definePoint("GPS+Sat", "Sats/On/Off", 0,1,0, function()
 																local v = 2
 																if config.Enables.GPS then
@@ -667,13 +668,48 @@ print("telemetry:telem="..tostring(telem).." DEFINING!")
 																end
 																return v
 															end)
-		telem:definePoint("SatInView", "Sats", 0,1,-1, function() return (tonumber(MOAIEnvironment.SatCount) or 0)+1 end)
-		telem:definePoint("SatInUse", "Sats", 0,1,-1, function() return (tonumber(MOAIEnvironment.SatInUse) or 0)+1 end)
+]]
+		telem:definePoint("Temperature", "NotSure", 0,0.1,0, function()
+																if type(MOAIEnvironment.BatteryTemperature) ~= 'nil' then
+																	local Temp = tonumber(MOAIEnvironment.BatteryTemperature)
+																	if Temp then
+																		return Temp/10.0
+																	end
+																end
+																return 0
+															end)
+		telem:definePoint("SatInView", "Sats", 0,1,-1, function()
+															if gpsDisabled or not config.Enables.GPS then
+																return 0
+															end
+															return (tonumber(MOAIEnvironment.SatCount) or 0)+1
+														end)
+		telem:definePoint("SatInUse", "Sats", 0,1,-1, function()
+															if gpsDisabled or not config.Enables.GPS then
+																return 0
+															end
+															return (tonumber(MOAIEnvironment.SatInUse) or 0)+1
+														end)
 --		telem:definePoint("Current", "mA", 0,1,-500, function() return 0 end)
 --		telem:definePoint("Phone Signal", "Percent", 0,1,0, function() return 0 end)
-		telem:defineBit("A/C", "On", 1, function() return 0 end)
-		telem:defineBit("Charging", "Yes", 1, function() return 0 end)
+		telem:defineBit("A/C", "On", 1, function()
+											if type(MOAIEnvironment.BatteryPlugged) ~= 'nil' then
+												if MOAIEnvironment.BatteryPlugged == 'AC' then
+													return 1
+												end
+											end
+											return 0
+										end)
+		telem:defineBit("Charging", "Yes", 1, function()
+											if type(MOAIEnvironment.BatteryStatus) ~= 'nil' then
+												if MOAIEnvironment.BatteryStatus == 'Charging' then
+													return 1
+												end
+											end
+											return 0
+										end)
 		telem:defineBit("GPS", "Enabled", 1, function() return config.Enables.GPS and 1 or 0 end)
+		telem:defineBit("GPS", "On", 1, function() return gpsDisabled and 0 or 1 end)
 		telem:init('APRSISMO Stats',120)
 	else telem:enableTelemetry(config.Enables.Telemetry)
 print("telemetry:telem="..tostring(telem).." Enabling!")
@@ -1005,6 +1041,23 @@ local function showDebugLines()
 	MOAIDebugLines.showStyle(MOAIDebugLines.TEXT_BOX_BASELINES, debugLines)
 	if MOAIDebugLines.TEXT_BOX_LAYOUT then
 		MOAIDebugLines.showStyle(MOAIDebugLines.TEXT_BOX_LAYOUT, debugLines)
+	end
+	
+	if debugLines then
+		local function makeRequiredDirectory(file, dir)
+			if file == '' then return nil end
+			local path = string.match(file, "(.+)/.+")
+			local fullpath = dir..'/'..path
+			MOAIFileSystem.affirmPath(fullpath)
+			return fullpath
+		end
+		makeRequiredDirectory("logs/TestHost.log", "/sdcard/TestHost")
+		local file = os.date("!/sdcard/TestHost/logs/%Y%m%d-%H%M%S.log")
+		MOAILogMgr.openFile(file)
+		print ( 'Logging Started\n' )
+	else
+		print ( 'Logging Stopped\n' )
+		MOAILogMgr.closeFile()
 	end
 end
 
@@ -1822,10 +1875,27 @@ if config.StationID == "KJ4ERJ-HB" then
 	if habitat and type(habitat.start) == 'function' then habitat:start(config) end
 end
 
-if config.StationID == "KJ4ERJ-12" or config.StationID == "KJ4ERJ-TS" then
+if config.StationID == "KJ4ERJ-12" or config.StationID == "KJ4ERJ-TS" or config.StationID == "KJ4ERJ-TH" then
 	performWithDelay2("Objects", 10*1000, function()
 									local Objects = {
 "KJ4ERJ-AL>APWW10,TCPIP*:;TstOvrLap*241422z2812.14N\\07652.42WTTest Overlap }d0]NGLGIJILLLLLLLLKMKMLMLMLMLMLNLNLNLNMNMNMNG{R9DAA",
+"KJ4ERJ-AP>APWW10,TCPIP*:;01-TLV   *081453z3200.04N/03452.24E.Tel Aviv Airport !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;02-Jaffa *081453z3203.25N/03445.19E.Jaffa Sea Port !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;03-CasMar*081453z3230.07N/03453.99E.Caesarea Maritima !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;04-Carmel*081453z3244.64N/03502.52E.Mount Carmel (Muhraka) !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;05-Megido*081453z3234.71N/03510.72E.Megiddo aka Armageddon !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;06-Tibers*081454z3247.22N/03532.45E.Tiberias !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;07-Capern*081454z3252.84N/03534.47E.Capernaum !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;08-Tabgha*081454z3252.44N/03532.92E.Tabgha !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;09-Beatud*081454z3252.88N/03533.45E.Mount of Beatitudes !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;1-Leonard*081454z3205.15N/03446.18EHLeonardo Art !ISRAEL!!wwl!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;10-CasPhl*081454z3313.30N/03537.38E.Caesarea Philippi !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;11-Tibers*081454z3247.22N/03532.45E.Tiberias !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;2-HaGoshr*081454z3313.33N/03537.29EHHaGoshrim Hotel & Nature !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;3-Inbal  *081454z3146.23N/03513.31EHHotel Inbal !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;4-AmmanCh*081454z3158.52N/03553.68EHAmman Cham Palace Hotel !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;5-Petra  *081454z3017.48N/03527.45EHPetra Panorama Hotel !ISRAEL!",
+"KJ4ERJ-AP>APWW10,TCPIP*:;StarLndry*081454z3146.25N/03513.16E.Star Laundry Ze'ev Jabotinsky St 25 !ISRAEL!",
 --"KJ4ERJ-AL>APWW10,TCPIP*:;DerDutch *241422z2719.40N\\08229.68WRDer Dutchmen!w(w!",
 --"KJ4ERJ-AL>APWW10,TCPIP*:;TECHCONSW*241422z2719.13N/08226.93WEhttp://tinyurl.com/2017TechConSW!w>&!",
 --"KJ4ERJ-AL>APWW10,TCPIP*:;CYSB-Air *241422z2722.87N/08233.22WHCourtyard Sarasota Bradenton Airport!w.6!",
